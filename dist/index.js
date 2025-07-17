@@ -32823,10 +32823,8 @@ const fetch = __nccwpck_require__(6705);
 const crypto = __nccwpck_require__(6982);
 const OpenAI = __nccwpck_require__(2583);
 
-// Lazy-loaded OpenAI client
 let openai = null;
 
-// Function to get or create OpenAI client
 function getOpenAIClient() {
   if (!openai) {
     const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
@@ -32842,7 +32840,6 @@ function getOpenAIClient() {
   return openai;
 }
 
-// Function to get D1 endpoint URL
 function getD1Endpoint() {
   const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
   const D1_DATABASE_ID = process.env.D1_DATABASE_ID;
@@ -32854,12 +32851,10 @@ function getD1Endpoint() {
   return `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}/query`;
 }
 
-// Normalize strings for consistency in cache key generation
 function normalize(str) {
   return (str || "").trim().replace(/\s+/g, " ");
 }
 
-// Generate a deterministic hash key for each finding
 function makeCacheKey(finding) {
   const rule = normalize(finding.rule);
   const title = normalize(
@@ -32869,13 +32864,9 @@ function makeCacheKey(finding) {
   const keyInput = `${rule}|${title}|${description}`;
   const hash = crypto.createHash("sha256").update(keyInput).digest("hex");
 
-  console.log("🧩 Cache key input:");
-  console.log(keyInput);
-  console.log(`🔑 Generated hash: ${hash}\n`);
   return hash;
 }
 
-// Wrapper to run SQL against D1
 async function d1Query(sql, params = []) {
   const D1_API_KEY = process.env.D1_API_KEY;
   if (!D1_API_KEY) {
@@ -32884,8 +32875,6 @@ async function d1Query(sql, params = []) {
 
   const D1_ENDPOINT = getD1Endpoint();
 
-  // If D1 supports params, use as is. Otherwise, interpolate safely.
-  // Below assumes params are supported. If not, you must escape/interpolate.
   const res = await fetch(D1_ENDPOINT, {
     method: "POST",
     headers: {
@@ -32898,14 +32887,12 @@ async function d1Query(sql, params = []) {
   const data = await res.json();
 
   if (!res.ok) {
-    console.error("❌ D1 query error:", data.errors?.[0]?.message || res.statusText);
     throw new Error(`D1 error: ${data.errors?.[0]?.message || res.statusText}`);
   }
 
   return data.result?.[0]?.results || [];
 }
 
-// Create table if not exists
 async function ensureTable() {
   await d1Query(`
     CREATE TABLE IF NOT EXISTS recommendations (
@@ -32916,26 +32903,28 @@ async function ensureTable() {
   `);
 }
 
-// Core logic to get recommendation from cache or generate new
 async function getAIRecommendation(finding, temperature = 0.0, maxRetries = 5) {
   await ensureTable();
   const cacheKey = makeCacheKey(finding);
 
-  console.log(`[CHECK] Looking up key: ${cacheKey}`);
+  const ruleDisplay = `${finding.rule}`;
+  const titlePreview = finding.title?.substring(0, 60) + (finding.title?.length > 60 ? "..." : "");
 
-  // Use parameterized query instead of string interpolation
+  console.log(`\n📋 Processing: ${ruleDisplay}`);
+  console.log(`   Title: ${titlePreview}`);
+  console.log(`   Cache: ${cacheKey.substring(0, 8)}...`);
+
   const rows = await d1Query(
     `SELECT recommendation FROM recommendations WHERE cache_key = ? LIMIT 1`,
     [cacheKey]
   );
-  console.log("DB rows:", rows);
 
   if (rows.length > 0 && rows[0].recommendation) {
-    console.log(`[✅ CACHE HIT] Rule: ${finding.rule} | Title: ${finding.title}\n`);
+    console.log(`   ✅ Cache HIT - Using stored recommendation`);
     return rows[0].recommendation;
   }
 
-  console.log(`[🔥 API HIT] Rule: ${finding.rule} | Title: ${finding.title}`);
+  console.log(`   🔥 API HIT - Generating new recommendation`);
 
   const prompt = `
 You are a senior DevSecOps assistant.
@@ -32953,7 +32942,7 @@ Recommendation:
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const openaiClient = getOpenAIClient(); // Get client when needed
+      const openaiClient = getOpenAIClient();
       const response = await openaiClient.chat.completions.create({
         model: "deepseek-chat",
         messages: [{ role: "user", content: prompt }],
@@ -32962,21 +32951,21 @@ Recommendation:
 
       recommendation = response.choices[0].message.content.trim();
 
-      // Insert recommendation (no overwrite on duplicate key)
+      // Store in cache
       await d1Query(
         `INSERT INTO recommendations (cache_key, recommendation) VALUES (?, ?) ON CONFLICT(cache_key) DO NOTHING`,
         [cacheKey, recommendation]
       );
 
-      console.log(`[💾 CACHE STORE] Rule: ${finding.rule} stored in D1\n`);
+      console.log(`   💾 Stored in cache successfully`);
       return recommendation;
     } catch (err) {
       lastError = err;
-      console.error(`[⚠️ API ERROR] Attempt ${attempt + 1} failed`, err.message || err);
+      console.log(`   ⚠️  API attempt ${attempt + 1} failed: ${err.message}`);
 
       if (err.status === 429) {
         const delay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
-        console.log(`⏳ Retrying after ${Math.floor(delay)} ms`);
+        console.log(`   ⏳ Retrying in ${Math.floor(delay)}ms...`);
         await new Promise((res) => setTimeout(res, delay));
       } else {
         break;
@@ -32984,11 +32973,10 @@ Recommendation:
     }
   }
 
-  console.error(`[❌ FINAL FAIL] Could not get recommendation for rule: ${finding.rule}\n`);
+  console.log(`   ❌ Failed to get recommendation after ${maxRetries} attempts`);
   throw lastError;
 }
 
-// Export functions for use in other modules
 module.exports = { getAIRecommendation };
 
 /***/ }),
@@ -43599,7 +43587,6 @@ class SecurityReportParser {
   }
 }
 
-// Export the class for use in other modules
 module.exports = SecurityReportParser;
 
 /***/ }),
@@ -43656,12 +43643,10 @@ const github = __nccwpck_require__(3228);
 const fs = __nccwpck_require__(9896);
 const path = __nccwpck_require__(6928);
 
-// Import the SecurityReportParser class directly
 const SecurityReportParser = __nccwpck_require__(5990);
 
 async function run() {
   try {
-    // Get inputs
     const scanJsonPath = core.getInput('scan-json-path');
     const outputPath = core.getInput('output-path');
     const cloudflareAccountId = core.getInput('cloudflare-account-id');
@@ -43671,13 +43656,11 @@ async function run() {
     const sendToSlack = core.getInput('send-to-slack') === 'true';
     const slackWebhookUrl = core.getInput('slack-webhook-url');
 
-    // Set environment variables for the script
     process.env.CLOUDFLARE_ACCOUNT_ID = cloudflareAccountId;
     process.env.D1_DATABASE_ID = d1DatabaseId;
     process.env.D1_API_KEY = d1ApiKey;
     process.env.DEEPSEEK_API_KEY = deepseekApiKey;
 
-    // Validate inputs
     if (!fs.existsSync(scanJsonPath)) {
       throw new Error(`Scan JSON file not found: ${scanJsonPath}`);
     }
@@ -43692,24 +43675,19 @@ async function run() {
     const parser = new SecurityReportParser();
     const result = await parser.processReport(scanJsonPath, outputPath);
 
-    // Verify report was generated
     if (!fs.existsSync(outputPath)) {
       throw new Error(`Report file was not generated: ${outputPath}`);
     }
 
-    // Get findings count from the result
     const findingsCount = result.summary.total;
 
-    // Set outputs
     core.setOutput('report-path', outputPath);
     core.setOutput('findings-count', findingsCount);
 
-    // Send to Slack if requested
     if (sendToSlack) {
       await sendSlackNotification(slackWebhookUrl, outputPath, findingsCount);
     }
 
-    // If this is running in a PR context, add a comment
     if (github.context.payload.pull_request) {
       await addPRComment(outputPath, findingsCount);
     }
@@ -43775,7 +43753,6 @@ async function sendSlackNotification(webhookUrl, reportPath, findingsCount) {
     console.log('✅ Slack notification sent successfully');
   } catch (error) {
     console.error('Failed to send Slack notification:', error.message);
-    // Don't fail the action if Slack notification fails
   }
 }
 
@@ -43790,7 +43767,6 @@ async function addPRComment(reportPath, findingsCount) {
     const octokit = github.getOctokit(token);
     const reportContent = fs.readFileSync(reportPath, 'utf8');
 
-    // Create a summary for the PR comment
     const summary = `## 🔍 Opengrep AI Security Report
 
 **Findings analyzed:** ${findingsCount}

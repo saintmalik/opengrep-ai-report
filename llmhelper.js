@@ -66,7 +66,6 @@ async function d1Query(sql, params = []) {
   const data = await res.json();
 
   if (!res.ok) {
-    console.error("❌ D1 query error:", data.errors?.[0]?.message || res.statusText);
     throw new Error(`D1 error: ${data.errors?.[0]?.message || res.statusText}`);
   }
 
@@ -87,7 +86,6 @@ async function getAIRecommendation(finding, temperature = 0.0, maxRetries = 5) {
   await ensureTable();
   const cacheKey = makeCacheKey(finding);
 
-  // Clean logging with consistent format
   const ruleDisplay = `${finding.rule}`;
   const titlePreview = finding.title?.substring(0, 60) + (finding.title?.length > 60 ? "..." : "");
 
@@ -95,7 +93,6 @@ async function getAIRecommendation(finding, temperature = 0.0, maxRetries = 5) {
   console.log(`   Title: ${titlePreview}`);
   console.log(`   Cache: ${cacheKey.substring(0, 8)}...`);
 
-  // Check cache first
   const rows = await d1Query(
     `SELECT recommendation FROM recommendations WHERE cache_key = ? LIMIT 1`,
     [cacheKey]
@@ -133,6 +130,7 @@ Recommendation:
 
       recommendation = response.choices[0].message.content.trim();
 
+      // Store in cache
       await d1Query(
         `INSERT INTO recommendations (cache_key, recommendation) VALUES (?, ?) ON CONFLICT(cache_key) DO NOTHING`,
         [cacheKey, recommendation]
