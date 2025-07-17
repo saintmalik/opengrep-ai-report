@@ -1,0 +1,33 @@
+{
+  "name": "opengrep-ai-report",
+  "version": "1.0.0",
+  "description": "Generate AI-powered security reports from Opengrep JSON scan results",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "ncc build index.js -o dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/saintmalik/opengrep-ai-report.git"
+  },
+  "keywords": [
+    "Opengrep",
+    "security",
+    "ai",
+    "github-action",
+    "static-analysis"
+  ],
+  "author": "abdulmalik",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
+    "crypto": "^1.0.1",
+    "node-fetch": "2",
+    "openai": "^5.10.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3"
+  }
+}
