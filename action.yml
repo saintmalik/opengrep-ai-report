@@ -1,0 +1,54 @@
+name: 'Opengrep AI Report Generator'
+description: 'Generate AI-powered security reports from existing Opengrep JSON scan results'
+author: 'opengrep'
+
+inputs:
+  scan-json-path:
+    description: 'Path to the Opengrep JSON scan results file'
+    required: true
+    default: 'scan.json'
+
+  output-path:
+    description: 'Path for the generated report'
+    required: false
+    default: 'SECURITY_REPORT.md'
+
+  cloudflare-account-id:
+    description: 'Cloudflare Account ID'
+    required: true
+
+  d1-database-id:
+    description: 'Cloudflare D1 Database ID/UUID'
+    required: true
+
+  d1-api-key:
+    description: 'Cloudflare D1 API key for database operations'
+    required: true
+
+  deepseek-api-key:
+    description: 'DeepSeek API key for AI analysis'
+    required: true
+
+  openai-api-key:
+    description: 'OpenAI API key for AI analysis (optional, if supporting OpenAI as backend)'
+    required: false
+
+  model-provider:
+    description: 'AI model provider to use: deepseek or openai'
+    required: false
+    default: 'deepseek'
+
+outputs:
+  report-path:
+    description: 'Path to the generated AI report'
+
+  findings-count:
+    description: 'Number of findings analyzed'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'shield'
+  color: 'red'
